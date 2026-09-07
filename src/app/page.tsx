@@ -233,12 +233,12 @@ export default function SorteioPage() {
         )}
       </section>
 
-      {(!current || current.winner) && players.length > 0 && (
+      {!current && players.length > 0 && (
         <button
           onClick={sortear}
           className="w-full rounded-2xl bg-gradient-to-r from-orange-500 to-amber-400 py-3.5 text-base font-bold text-slate-950 shadow-xl shadow-orange-500/25 transition active:scale-[0.98]"
         >
-          {current ? "🎲 Sortear próximo set" : "🎲 Sortear times"}
+          🎲 Sortear times
         </button>
       )}
 
@@ -296,6 +296,15 @@ export default function SorteioPage() {
                 🏆 Time B venceu
               </button>
             </div>
+          )}
+
+          {current.winner && (
+            <button
+              onClick={sortear}
+              className="w-full rounded-2xl bg-gradient-to-r from-orange-500 to-amber-400 py-3.5 text-base font-bold text-slate-950 shadow-xl shadow-orange-500/25 transition active:scale-[0.98]"
+            >
+              🎲 Sortear próximo set
+            </button>
           )}
         </section>
       )}
