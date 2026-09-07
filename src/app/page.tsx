@@ -96,8 +96,11 @@ export default function SorteioPage() {
     return map;
   }, [players]);
 
-  const names = (ids: string[]) =>
-    ids.map((id) => playerById.get(id)?.name ?? "?").sort();
+  const namesFor = (ids: string[]) =>
+    ids
+      .map((id) => playerById.get(id))
+      .filter((p): p is Player => !!p)
+      .sort((a, b) => a.name.localeCompare(b.name));
 
   async function toggleAttendance(playerId: string) {
     if (!gameDayId) return;
@@ -176,84 +179,121 @@ export default function SorteioPage() {
     setRounds(rounds.map((r) => (r.id === current.id ? { ...r, winner: team } : r)));
   }
 
-  if (loading) return <p className="text-slate-500 text-sm">Carregando...</p>;
+  if (loading) return <SorteioSkeleton />;
 
   const current = rounds[rounds.length - 1];
 
   return (
-    <div className="space-y-6">
-      {error && <p className="text-red-600 text-sm">{error}</p>}
+    <div className="space-y-7">
+      {error && (
+        <p className="rounded-xl border border-red-500/20 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300">
+          {error}
+        </p>
+      )}
 
-      <section className="space-y-2">
-        <h2 className="font-semibold text-slate-700">
-          Presença hoje ({attendingIds.size})
-        </h2>
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold tracking-tight text-white">Presença de hoje</h2>
+          <span className="rounded-full bg-orange-500/15 px-2.5 py-1 text-xs font-semibold text-orange-400">
+            {attendingIds.size} confirmados
+          </span>
+        </div>
+
         {players.length === 0 ? (
-          <p className="text-slate-500 text-sm">
-            Cadastre jogadores na aba &quot;Jogadores&quot; primeiro.
-          </p>
+          <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-4 py-8 text-center text-sm text-slate-400">
+            Cadastre jogadores na aba <span className="font-medium text-slate-300">Jogadores</span> primeiro.
+          </div>
         ) : (
-          <ul className="grid grid-cols-2 gap-2">
-            {players.map((p) => (
-              <li key={p.id}>
-                <label className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 shadow-sm">
-                  <input
-                    type="checkbox"
-                    checked={attendingIds.has(p.id)}
-                    onChange={() => toggleAttendance(p.id)}
-                  />
-                  <span className="text-sm">
-                    {p.name} <span className="text-slate-400">({p.gender === "M" ? "H" : "M"})</span>
-                  </span>
-                </label>
-              </li>
-            ))}
+          <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {players.map((p) => {
+              const active = attendingIds.has(p.id);
+              return (
+                <li key={p.id}>
+                  <button
+                    onClick={() => toggleAttendance(p.id)}
+                    className={`flex w-full items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition ${
+                      active
+                        ? "border-orange-500/40 bg-orange-500/10 text-white"
+                        : "border-white/5 bg-white/[0.03] text-slate-400"
+                    }`}
+                  >
+                    <span
+                      className={`grid h-5 w-5 shrink-0 place-items-center rounded-full text-[10px] ${
+                        active ? "bg-orange-500 text-white" : "bg-white/5 text-transparent"
+                      }`}
+                    >
+                      ✓
+                    </span>
+                    <span className="truncate">{p.name}</span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
 
-      {(!current || current.winner) && (
+      {(!current || current.winner) && players.length > 0 && (
         <button
           onClick={sortear}
-          className="w-full rounded-lg bg-orange-600 text-white font-semibold py-3 active:bg-orange-700"
+          className="w-full rounded-2xl bg-gradient-to-r from-orange-500 to-amber-400 py-3.5 text-base font-bold text-slate-950 shadow-xl shadow-orange-500/25 transition active:scale-[0.98]"
         >
-          {current ? "Sortear próximo set" : "Sortear times"}
+          {current ? "🎲 Sortear próximo set" : "🎲 Sortear times"}
         </button>
       )}
 
       {current && (
-        <section className="space-y-3">
-          <h2 className="font-semibold text-slate-700">Set {current.round_number}</h2>
-          <div className="grid grid-cols-2 gap-3">
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold tracking-tight text-white">
+              Set {current.round_number}
+            </h2>
+            {current.winner && (
+              <span className="text-xs font-semibold text-emerald-400">Encerrado ✓</span>
+            )}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
             <TeamCard
               label="Time A"
-              names={names(current.teamAIds)}
+              accent="sky"
+              names={namesFor(current.teamAIds).map((p) => p.name)}
               isWinner={current.winner === "A"}
             />
             <TeamCard
               label="Time B"
-              names={names(current.teamBIds)}
+              accent="violet"
+              names={namesFor(current.teamBIds).map((p) => p.name)}
               isWinner={current.winner === "B"}
             />
           </div>
+
           {current.benchIds.length > 0 && (
-            <p className="text-sm text-slate-500">
-              Banco: {names(current.benchIds).join(", ")}
-            </p>
+            <div className="rounded-xl border border-white/5 bg-white/[0.02] px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Banco
+              </p>
+              <p className="mt-1 text-sm text-slate-300">
+                {namesFor(current.benchIds)
+                  .map((p) => p.name)
+                  .join(" · ")}
+              </p>
+            </div>
           )}
+
           {!current.winner && (
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => markWinner("A")}
-                className="rounded-lg bg-slate-800 text-white font-medium py-2 active:bg-slate-900"
+                className="rounded-xl border border-sky-500/30 bg-sky-500/10 py-2.5 text-sm font-semibold text-sky-300 transition active:scale-[0.98]"
               >
-                Time A venceu
+                🏆 Time A venceu
               </button>
               <button
                 onClick={() => markWinner("B")}
-                className="rounded-lg bg-slate-800 text-white font-medium py-2 active:bg-slate-900"
+                className="rounded-xl border border-violet-500/30 bg-violet-500/10 py-2.5 text-sm font-semibold text-violet-300 transition active:scale-[0.98]"
               >
-                Time B venceu
+                🏆 Time B venceu
               </button>
             </div>
           )}
@@ -267,25 +307,49 @@ function TeamCard({
   label,
   names,
   isWinner,
+  accent,
 }: {
   label: string;
   names: string[];
   isWinner: boolean;
+  accent: "sky" | "violet";
 }) {
+  const accentClasses =
+    accent === "sky"
+      ? "from-sky-500/10 border-sky-500/20"
+      : "from-violet-500/10 border-violet-500/20";
+
   return (
     <div
-      className={`rounded-xl p-3 shadow-sm ${
-        isWinner ? "bg-green-100 ring-2 ring-green-500" : "bg-white"
+      className={`rounded-2xl border bg-gradient-to-br to-transparent p-4 shadow-lg shadow-black/10 ${accentClasses} ${
+        isWinner ? "ring-2 ring-emerald-400/60" : ""
       }`}
     >
-      <h3 className="font-semibold mb-1">
-        {label} {isWinner && "🏆"}
-      </h3>
-      <ul className="text-sm space-y-0.5">
+      <div className="mb-2 flex items-center justify-between">
+        <h3 className="font-bold text-white">{label}</h3>
+        {isWinner && <span className="text-lg">🏆</span>}
+      </div>
+      <ul className="space-y-1 text-sm text-slate-300">
         {names.map((n) => (
-          <li key={n}>{n}</li>
+          <li key={n} className="truncate">
+            {n}
+          </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function SorteioSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="h-6 w-40 animate-pulse rounded bg-white/[0.05]" />
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="h-10 animate-pulse rounded-xl bg-white/[0.03]" />
+        ))}
+      </div>
+      <div className="h-12 animate-pulse rounded-2xl bg-white/[0.03]" />
     </div>
   );
 }

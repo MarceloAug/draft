@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import Link from "next/link";
 import "./globals.css";
+import NavBar from "@/components/NavBar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -18,40 +18,37 @@ export const metadata: Metadata = {
   description: "Sorteio de times de vôlei balanceado por gênero",
 };
 
-const navItems = [
-  { href: "/", label: "Sorteio" },
-  { href: "/jogadores", label: "Jogadores" },
-  { href: "/ranking", label: "Ranking" },
-];
-
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="pt-BR"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-slate-50 text-slate-900">
-        <header className="sticky top-0 z-10 bg-orange-600 text-white shadow">
-          <div className="mx-auto max-w-md px-4 py-3">
-            <h1 className="text-lg font-bold">🏐 Sorteio de Times</h1>
+      <body className="min-h-full flex flex-col bg-transparent text-slate-100">
+        <header className="sticky top-0 z-20 border-b border-white/5 bg-slate-950/80 backdrop-blur-lg">
+          <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3.5 sm:px-6">
+            <div className="flex items-center gap-2.5">
+              <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-lg shadow-lg shadow-orange-500/30">
+                🏐
+              </span>
+              <div className="leading-tight">
+                <h1 className="text-base font-bold tracking-tight text-white sm:text-lg">
+                  Sorteio de Times
+                </h1>
+                <p className="text-[11px] font-medium text-slate-400">
+                  vôlei de fim de semana
+                </p>
+              </div>
+            </div>
+            <NavBar variant="top" />
           </div>
         </header>
-        <main className="flex-1 mx-auto w-full max-w-md px-4 py-4 pb-20">
+
+        <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-5 pb-24 sm:px-6 sm:pb-8">
           {children}
         </main>
-        <nav className="fixed bottom-0 inset-x-0 z-10 bg-white border-t border-slate-200">
-          <div className="mx-auto max-w-md grid grid-cols-3">
-            {navItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="flex flex-col items-center gap-0.5 py-2.5 text-sm font-medium text-slate-600 active:bg-slate-100"
-              >
-                {item.label}
-              </Link>
-            ))}
-          </div>
-        </nav>
+
+        <NavBar variant="bottom" />
       </body>
     </html>
   );
