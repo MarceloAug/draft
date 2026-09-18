@@ -11,6 +11,7 @@ create table players (
 create table game_days (
   id uuid primary key default gen_random_uuid(),
   date date not null unique,
+  finished boolean not null default false,
   created_at timestamptz not null default now()
 );
 

@@ -19,10 +19,11 @@ export default function SorteioPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [attendingIds, setAttendingIds] = useState<Set<string>>(new Set());
   const [gameDayId, setGameDayId] = useState<string | null>(null);
+  const [gameDayFinished, setGameDayFinished] = useState(false);
   const [rounds, setRounds] = useState<RoundState[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<null | "sortear" | "A" | "B" | "swap">(null);
+  const [busy, setBusy] = useState<null | "sortear" | "A" | "B" | "swap" | "day">(null);
   const [editMode, setEditMode] = useState(false);
   const [swapSelection, setSwapSelection] = useState<string | null>(null);
 
@@ -43,16 +44,17 @@ export default function SorteioPage() {
     let dayId: string;
     const { data: existingDay } = await supabase
       .from("game_days")
-      .select("id")
+      .select("id, finished")
       .eq("date", date)
       .maybeSingle();
     if (existingDay) {
       dayId = existingDay.id;
+      setGameDayFinished(existingDay.finished);
     } else {
       const { data: newDay, error: newDayErr } = await supabase
         .from("game_days")
         .insert({ date })
-        .select("id")
+        .select("id, finished")
         .single();
       if (newDayErr) {
         setError(newDayErr.message);
@@ -60,6 +62,7 @@ export default function SorteioPage() {
         return;
       }
       dayId = newDay.id;
+      setGameDayFinished(newDay.finished);
     }
     setGameDayId(dayId);
 
@@ -197,6 +200,46 @@ export default function SorteioPage() {
     }
   }
 
+  async function finalizarDia() {
+    if (!gameDayId) return;
+    if (!confirm("Encerrar o dia de hoje? Não dá mais pra sortear ou marcar vencedor.")) return;
+    setBusy("day");
+    try {
+      const { error } = await supabase
+        .from("game_days")
+        .update({ finished: true })
+        .eq("id", gameDayId);
+      if (error) {
+        setError(error.message);
+        return;
+      }
+      setGameDayFinished(true);
+      setEditMode(false);
+      setSwapSelection(null);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function reabrirDia() {
+    if (!gameDayId) return;
+    if (!confirm("Reabrir o dia de hoje?")) return;
+    setBusy("day");
+    try {
+      const { error } = await supabase
+        .from("game_days")
+        .update({ finished: false })
+        .eq("id", gameDayId);
+      if (error) {
+        setError(error.message);
+        return;
+      }
+      setGameDayFinished(false);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   function locateTeam(round: RoundState, playerId: string): "A" | "B" | "BENCH" | null {
     if (round.teamAIds.includes(playerId)) return "A";
     if (round.teamBIds.includes(playerId)) return "B";
@@ -287,6 +330,19 @@ export default function SorteioPage() {
         </p>
       )}
 
+      {gameDayFinished && (
+        <div className="flex items-center justify-between rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3">
+          <span className="text-sm font-semibold text-emerald-300">✅ Dia encerrado</span>
+          <button
+            onClick={reabrirDia}
+            disabled={busy !== null}
+            className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition active:scale-[0.98] disabled:opacity-60"
+          >
+            {busy === "day" ? <Spinner /> : null} Reabrir dia
+          </button>
+        </div>
+      )}
+
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold tracking-tight text-white">Presença de hoje</h2>
@@ -307,7 +363,8 @@ export default function SorteioPage() {
                 <li key={p.id}>
                   <button
                     onClick={() => toggleAttendance(p.id)}
-                    className={`flex w-full items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition ${
+                    disabled={gameDayFinished}
+                    className={`flex w-full items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition disabled:opacity-60 ${
                       active
                         ? "border-orange-500/40 bg-orange-500/10 text-white"
                         : "border-white/5 bg-white/[0.03] text-slate-400"
@@ -329,7 +386,7 @@ export default function SorteioPage() {
         )}
       </section>
 
-      {!current && players.length > 0 && (
+      {!current && players.length > 0 && !gameDayFinished && (
         <button
           onClick={sortear}
           disabled={busy !== null}
@@ -351,7 +408,7 @@ export default function SorteioPage() {
             <h2 className="text-xl font-bold tracking-tight text-white">
               Set {current.round_number}
             </h2>
-            {current.winner ? (
+            {current.winner || gameDayFinished ? (
               <span className="text-xs font-semibold text-emerald-400">Encerrado ✓</span>
             ) : (
               <button
@@ -370,7 +427,7 @@ export default function SorteioPage() {
             )}
           </div>
 
-          {editMode && (
+          {editMode && !gameDayFinished && (
             <p className="text-xs text-slate-400">
               Toque em 2 jogadores (times ou banco) pra trocar de lugar.
             </p>
@@ -424,7 +481,7 @@ export default function SorteioPage() {
             </div>
           )}
 
-          {!current.winner && (
+          {!current.winner && !gameDayFinished && (
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => markWinner("A")}
@@ -455,7 +512,7 @@ export default function SorteioPage() {
             </div>
           )}
 
-          {current.winner && (
+          {current.winner && !gameDayFinished && (
             <button
               onClick={sortear}
               disabled={busy !== null}
@@ -471,6 +528,22 @@ export default function SorteioPage() {
             </button>
           )}
         </section>
+      )}
+
+      {gameDayId && !gameDayFinished && players.length > 0 && (
+        <button
+          onClick={finalizarDia}
+          disabled={busy !== null}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 py-2.5 text-sm font-semibold text-slate-400 transition hover:text-white disabled:opacity-60"
+        >
+          {busy === "day" ? (
+            <>
+              <Spinner /> Encerrando...
+            </>
+          ) : (
+            "🔒 Encerrar dia de hoje"
+          )}
+        </button>
       )}
     </div>
   );
