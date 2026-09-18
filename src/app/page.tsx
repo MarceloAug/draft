@@ -22,6 +22,7 @@ export default function SorteioPage() {
   const [rounds, setRounds] = useState<RoundState[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<null | "sortear" | "A" | "B">(null);
 
   const init = async () => {
     setLoading(true);
@@ -130,53 +131,66 @@ export default function SorteioPage() {
       return;
     }
     setError(null);
-    const alreadyRested = new Set(rounds.flatMap((r) => r.benchIds));
-    const last = rounds[rounds.length - 1];
-    const previousTeamAIds = last ? new Set(last.teamAIds) : undefined;
-    const { teamA, teamB, bench } = drawRound(present, alreadyRested, previousTeamAIds);
-    const roundNumber = last ? last.round_number + 1 : 1;
+    setBusy("sortear");
+    try {
+      const alreadyRested = new Set(rounds.flatMap((r) => r.benchIds));
+      const last = rounds[rounds.length - 1];
+      const previousTeamAIds = last ? new Set(last.teamAIds) : undefined;
+      const { teamA, teamB, bench } = drawRound(present, alreadyRested, previousTeamAIds);
+      const roundNumber = last ? last.round_number + 1 : 1;
 
-    const { data: roundRow, error: roundErr } = await supabase
-      .from("rounds")
-      .insert({ game_day_id: gameDayId, round_number: roundNumber })
-      .select("id")
-      .single();
-    if (roundErr) {
-      setError(roundErr.message);
-      return;
+      const { data: roundRow, error: roundErr } = await supabase
+        .from("rounds")
+        .insert({ game_day_id: gameDayId, round_number: roundNumber })
+        .select("id")
+        .single();
+      if (roundErr) {
+        setError(roundErr.message);
+        return;
+      }
+      const rows = [
+        ...teamA.map((p) => ({ round_id: roundRow.id, player_id: p.id, team: "A" })),
+        ...teamB.map((p) => ({ round_id: roundRow.id, player_id: p.id, team: "B" })),
+        ...bench.map((p) => ({ round_id: roundRow.id, player_id: p.id, team: "BENCH" })),
+      ];
+      const { error: rpErr } = await supabase.from("round_players").insert(rows);
+      if (rpErr) {
+        setError(rpErr.message);
+        return;
+      }
+      setRounds([
+        ...rounds,
+        {
+          id: roundRow.id,
+          round_number: roundNumber,
+          winner: null,
+          teamAIds: teamA.map((p) => p.id),
+          teamBIds: teamB.map((p) => p.id),
+          benchIds: bench.map((p) => p.id),
+        },
+      ]);
+    } finally {
+      setBusy(null);
     }
-    const rows = [
-      ...teamA.map((p) => ({ round_id: roundRow.id, player_id: p.id, team: "A" })),
-      ...teamB.map((p) => ({ round_id: roundRow.id, player_id: p.id, team: "B" })),
-      ...bench.map((p) => ({ round_id: roundRow.id, player_id: p.id, team: "BENCH" })),
-    ];
-    const { error: rpErr } = await supabase.from("round_players").insert(rows);
-    if (rpErr) {
-      setError(rpErr.message);
-      return;
-    }
-    setRounds([
-      ...rounds,
-      {
-        id: roundRow.id,
-        round_number: roundNumber,
-        winner: null,
-        teamAIds: teamA.map((p) => p.id),
-        teamBIds: teamB.map((p) => p.id),
-        benchIds: bench.map((p) => p.id),
-      },
-    ]);
   }
 
   async function markWinner(team: "A" | "B") {
     const current = rounds[rounds.length - 1];
     if (!current) return;
-    const { error } = await supabase.from("rounds").update({ winner: team }).eq("id", current.id);
-    if (error) {
-      setError(error.message);
-      return;
+    setBusy(team);
+    try {
+      const { error } = await supabase
+        .from("rounds")
+        .update({ winner: team })
+        .eq("id", current.id);
+      if (error) {
+        setError(error.message);
+        return;
+      }
+      setRounds(rounds.map((r) => (r.id === current.id ? { ...r, winner: team } : r)));
+    } finally {
+      setBusy(null);
     }
-    setRounds(rounds.map((r) => (r.id === current.id ? { ...r, winner: team } : r)));
   }
 
   if (loading) return <SorteioSkeleton />;
@@ -236,9 +250,16 @@ export default function SorteioPage() {
       {!current && players.length > 0 && (
         <button
           onClick={sortear}
-          className="w-full rounded-2xl bg-gradient-to-r from-orange-500 to-amber-400 py-3.5 text-base font-bold text-slate-950 shadow-xl shadow-orange-500/25 transition active:scale-[0.98]"
+          disabled={busy !== null}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-400 py-3.5 text-base font-bold text-slate-950 shadow-xl shadow-orange-500/25 transition active:scale-[0.98] disabled:opacity-60"
         >
-          🎲 Sortear times
+          {busy === "sortear" ? (
+            <>
+              <Spinner /> Sorteando...
+            </>
+          ) : (
+            "🎲 Sortear times"
+          )}
         </button>
       )}
 
@@ -285,15 +306,29 @@ export default function SorteioPage() {
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => markWinner("A")}
-                className="rounded-xl border border-sky-500/30 bg-sky-500/10 py-2.5 text-sm font-semibold text-sky-300 transition active:scale-[0.98]"
+                disabled={busy !== null}
+                className="flex items-center justify-center gap-2 rounded-xl border border-sky-500/30 bg-sky-500/10 py-2.5 text-sm font-semibold text-sky-300 transition active:scale-[0.98] disabled:opacity-60"
               >
-                🏆 Time A venceu
+                {busy === "A" ? (
+                  <>
+                    <Spinner /> Salvando...
+                  </>
+                ) : (
+                  "🏆 Time A venceu"
+                )}
               </button>
               <button
                 onClick={() => markWinner("B")}
-                className="rounded-xl border border-violet-500/30 bg-violet-500/10 py-2.5 text-sm font-semibold text-violet-300 transition active:scale-[0.98]"
+                disabled={busy !== null}
+                className="flex items-center justify-center gap-2 rounded-xl border border-violet-500/30 bg-violet-500/10 py-2.5 text-sm font-semibold text-violet-300 transition active:scale-[0.98] disabled:opacity-60"
               >
-                🏆 Time B venceu
+                {busy === "B" ? (
+                  <>
+                    <Spinner /> Salvando...
+                  </>
+                ) : (
+                  "🏆 Time B venceu"
+                )}
               </button>
             </div>
           )}
@@ -301,9 +336,16 @@ export default function SorteioPage() {
           {current.winner && (
             <button
               onClick={sortear}
-              className="w-full rounded-2xl bg-gradient-to-r from-orange-500 to-amber-400 py-3.5 text-base font-bold text-slate-950 shadow-xl shadow-orange-500/25 transition active:scale-[0.98]"
+              disabled={busy !== null}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-400 py-3.5 text-base font-bold text-slate-950 shadow-xl shadow-orange-500/25 transition active:scale-[0.98] disabled:opacity-60"
             >
-              🎲 Sortear próximo set
+              {busy === "sortear" ? (
+                <>
+                  <Spinner /> Sorteando...
+                </>
+              ) : (
+                "🎲 Sortear próximo set"
+              )}
             </button>
           )}
         </section>
@@ -346,6 +388,12 @@ function TeamCard({
         ))}
       </ul>
     </div>
+  );
+}
+
+function Spinner() {
+  return (
+    <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent" />
   );
 }
 
