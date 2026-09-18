@@ -132,6 +132,7 @@ export default function SorteioPage() {
       setError("Marque presença de pelo menos 2 jogadores.");
       return;
     }
+    if (!confirm("Sortear os times agora?")) return;
     setError(null);
     setBusy("sortear");
     try {
@@ -179,6 +180,7 @@ export default function SorteioPage() {
   async function markWinner(team: "A" | "B") {
     const current = rounds[rounds.length - 1];
     if (!current) return;
+    if (!confirm(`Confirma que o Time ${team} venceu?`)) return;
     setBusy(team);
     try {
       const { error } = await supabase
@@ -261,6 +263,12 @@ export default function SorteioPage() {
       return;
     }
     if (swapSelection === playerId) {
+      setSwapSelection(null);
+      return;
+    }
+    const nameA = playerById.get(swapSelection)?.name ?? "?";
+    const nameB = playerById.get(playerId)?.name ?? "?";
+    if (!confirm(`Trocar ${nameA} com ${nameB}?`)) {
       setSwapSelection(null);
       return;
     }
