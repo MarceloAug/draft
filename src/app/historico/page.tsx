@@ -7,6 +7,7 @@ interface GameDayRow {
   id: string;
   date: string;
   finished: boolean;
+  session_number: number;
 }
 
 interface RoundRow {
@@ -17,6 +18,8 @@ interface RoundRow {
   round_players: { player_id: string; team: "A" | "B" | "BENCH" }[];
 }
 
+const medals = ["🥇", "🥈", "🥉"];
+
 function formatDate(dateStr: string) {
   const d = new Date(`${dateStr}T00:00:00`);
   return d.toLocaleDateString("pt-BR", {
@@ -24,6 +27,25 @@ function formatDate(dateStr: string) {
     day: "2-digit",
     month: "short",
   });
+}
+
+function labelFor(day: GameDayRow) {
+  const base = formatDate(day.date);
+  return day.session_number > 1 ? `${base} _${day.session_number}` : base;
+}
+
+function rankingFor(rounds: RoundRow[]) {
+  const wins = new Map<string, number>();
+  for (const r of rounds) {
+    if (!r.winner) continue;
+    for (const rp of r.round_players) {
+      if (rp.team !== r.winner) continue;
+      wins.set(rp.player_id, (wins.get(rp.player_id) ?? 0) + 1);
+    }
+  }
+  return [...wins.entries()]
+    .map(([playerId, count]) => ({ playerId, wins: count }))
+    .sort((a, b) => b.wins - a.wins);
 }
 
 export default function HistoricoPage() {
@@ -38,7 +60,11 @@ export default function HistoricoPage() {
     setLoading(true);
     const [{ data: daysData }, { data: attendanceData }, { data: roundsData }, { data: playersData }] =
       await Promise.all([
-        supabase.from("game_days").select("id, date, finished").order("date", { ascending: false }),
+        supabase
+          .from("game_days")
+          .select("id, date, finished, session_number")
+          .order("date", { ascending: false })
+          .order("session_number", { ascending: false }),
         supabase.from("attendance").select("game_day_id, player_id"),
         supabase
           .from("rounds")
@@ -110,7 +136,7 @@ export default function HistoricoPage() {
                 >
                   <div>
                     <p className="text-sm font-semibold capitalize text-slate-100">
-                      {formatDate(day.date)}
+                      {labelFor(day)}
                     </p>
                     <p className="text-xs text-slate-500">
                       {attendanceCounts.get(day.id) ?? 0} jogadores · {rounds.length}{" "}
@@ -132,57 +158,39 @@ export default function HistoricoPage() {
                 </button>
 
                 {expanded && (
-                  <div className="space-y-3 border-t border-white/5 px-4 py-3">
-                    {rounds.length === 0 ? (
-                      <p className="text-sm text-slate-500">Nenhum set sorteado nesse dia.</p>
-                    ) : (
-                      rounds.map((r) => {
-                        const teamA = r.round_players.filter((rp) => rp.team === "A");
-                        const teamB = r.round_players.filter((rp) => rp.team === "B");
-                        const bench = r.round_players.filter((rp) => rp.team === "BENCH");
+                  <div className="space-y-2 border-t border-white/5 px-4 py-3">
+                    {(() => {
+                      const ranking = rankingFor(rounds);
+                      if (ranking.length === 0) {
                         return (
-                          <div
-                            key={r.id}
-                            className="rounded-lg border border-white/5 bg-white/[0.02] p-3"
-                          >
-                            <p className="mb-1.5 text-xs font-semibold text-slate-400">
-                              Set {r.round_number}
-                            </p>
-                            <div className="grid grid-cols-2 gap-2 text-sm">
-                              <div>
-                                <p
-                                  className={`font-semibold ${
-                                    r.winner === "A" ? "text-emerald-400" : "text-sky-300"
-                                  }`}
-                                >
-                                  Time A {r.winner === "A" && "🏆"}
-                                </p>
-                                <p className="text-slate-400">
-                                  {teamA.map((rp) => nameOf(rp.player_id)).join(", ")}
-                                </p>
-                              </div>
-                              <div>
-                                <p
-                                  className={`font-semibold ${
-                                    r.winner === "B" ? "text-emerald-400" : "text-violet-300"
-                                  }`}
-                                >
-                                  Time B {r.winner === "B" && "🏆"}
-                                </p>
-                                <p className="text-slate-400">
-                                  {teamB.map((rp) => nameOf(rp.player_id)).join(", ")}
-                                </p>
-                              </div>
-                            </div>
-                            {bench.length > 0 && (
-                              <p className="mt-1.5 text-xs text-slate-500">
-                                Banco: {bench.map((rp) => nameOf(rp.player_id)).join(", ")}
-                              </p>
-                            )}
-                          </div>
+                          <p className="text-sm text-slate-500">
+                            Nenhum vencedor registrado nesse dia.
+                          </p>
                         );
-                      })
-                    )}
+                      }
+                      return ranking.map((entry, i) => (
+                        <div
+                          key={entry.playerId}
+                          className={`flex items-center gap-3 rounded-lg border px-3 py-2 ${
+                            i === 0
+                              ? "border-amber-400/30 bg-amber-400/5"
+                              : "border-white/5 bg-white/[0.02]"
+                          }`}
+                        >
+                          <span className="w-6 shrink-0 text-center">
+                            {medals[i] ?? (
+                              <span className="text-xs text-slate-500">{i + 1}º</span>
+                            )}
+                          </span>
+                          <span className="flex-1 truncate text-sm font-medium text-slate-100">
+                            {nameOf(entry.playerId)}
+                          </span>
+                          <span className="text-sm font-bold text-orange-400">
+                            {entry.wins} {entry.wins === 1 ? "vitória" : "vitórias"}
+                          </span>
+                        </div>
+                      ));
+                    })()}
                   </div>
                 )}
               </li>
