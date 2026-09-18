@@ -22,7 +22,9 @@ export default function SorteioPage() {
   const [rounds, setRounds] = useState<RoundState[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<null | "sortear" | "A" | "B">(null);
+  const [busy, setBusy] = useState<null | "sortear" | "A" | "B" | "swap">(null);
+  const [editMode, setEditMode] = useState(false);
+  const [swapSelection, setSwapSelection] = useState<string | null>(null);
 
   const init = async () => {
     setLoading(true);
@@ -97,7 +99,7 @@ export default function SorteioPage() {
     return map;
   }, [players]);
 
-  const namesFor = (ids: string[]) =>
+  const playersFor = (ids: string[]) =>
     ids
       .map((id) => playerById.get(id))
       .filter((p): p is Player => !!p)
@@ -193,6 +195,78 @@ export default function SorteioPage() {
     }
   }
 
+  function locateTeam(round: RoundState, playerId: string): "A" | "B" | "BENCH" | null {
+    if (round.teamAIds.includes(playerId)) return "A";
+    if (round.teamBIds.includes(playerId)) return "B";
+    if (round.benchIds.includes(playerId)) return "BENCH";
+    return null;
+  }
+
+  async function swapPlayers(idA: string, idB: string) {
+    const current = rounds[rounds.length - 1];
+    if (!current || idA === idB) return;
+    const teamOfA = locateTeam(current, idA);
+    const teamOfB = locateTeam(current, idB);
+    if (!teamOfA || !teamOfB || teamOfA === teamOfB) return;
+
+    setError(null);
+    setBusy("swap");
+    try {
+      const [{ error: errA }, { error: errB }] = await Promise.all([
+        supabase
+          .from("round_players")
+          .update({ team: teamOfB })
+          .eq("round_id", current.id)
+          .eq("player_id", idA),
+        supabase
+          .from("round_players")
+          .update({ team: teamOfA })
+          .eq("round_id", current.id)
+          .eq("player_id", idB),
+      ]);
+      if (errA || errB) {
+        setError((errA ?? errB)!.message);
+        return;
+      }
+      setRounds(
+        rounds.map((r) => {
+          if (r.id !== current.id) return r;
+          const remove = (arr: string[], id: string) => arr.filter((x) => x !== id);
+          let teamAIds = remove(r.teamAIds, idA);
+          let teamBIds = remove(r.teamBIds, idB);
+          let benchIds = r.benchIds;
+          teamAIds = remove(teamAIds, idB);
+          teamBIds = remove(teamBIds, idA);
+          benchIds = remove(remove(benchIds, idA), idB);
+          const addTo = (team: "A" | "B" | "BENCH", id: string) => {
+            if (team === "A") teamAIds = [...teamAIds, id];
+            else if (team === "B") teamBIds = [...teamBIds, id];
+            else benchIds = [...benchIds, id];
+          };
+          addTo(teamOfB, idA);
+          addTo(teamOfA, idB);
+          return { ...r, teamAIds, teamBIds, benchIds };
+        })
+      );
+    } finally {
+      setBusy(null);
+      setSwapSelection(null);
+    }
+  }
+
+  function handlePlayerTap(playerId: string) {
+    if (!editMode || busy) return;
+    if (swapSelection === null) {
+      setSwapSelection(playerId);
+      return;
+    }
+    if (swapSelection === playerId) {
+      setSwapSelection(null);
+      return;
+    }
+    swapPlayers(swapSelection, playerId);
+  }
+
   if (loading) return <SorteioSkeleton />;
 
   const current = rounds[rounds.length - 1];
@@ -269,36 +343,76 @@ export default function SorteioPage() {
             <h2 className="text-xl font-bold tracking-tight text-white">
               Set {current.round_number}
             </h2>
-            {current.winner && (
+            {current.winner ? (
               <span className="text-xs font-semibold text-emerald-400">Encerrado ✓</span>
+            ) : (
+              <button
+                onClick={() => {
+                  setEditMode((v) => !v);
+                  setSwapSelection(null);
+                }}
+                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                  editMode
+                    ? "bg-orange-500 text-white"
+                    : "bg-white/5 text-slate-400 hover:text-white"
+                }`}
+              >
+                {editMode ? "✕ Cancelar" : "✏️ Trocar"}
+              </button>
             )}
           </div>
+
+          {editMode && (
+            <p className="text-xs text-slate-400">
+              Toque em 2 jogadores (times ou banco) pra trocar de lugar.
+            </p>
+          )}
 
           <div className="grid gap-3 sm:grid-cols-2">
             <TeamCard
               label="Time A"
               accent="sky"
-              names={namesFor(current.teamAIds).map((p) => p.name)}
+              players={playersFor(current.teamAIds)}
               isWinner={current.winner === "A"}
+              editMode={editMode}
+              selectedId={swapSelection}
+              onSelect={handlePlayerTap}
             />
             <TeamCard
               label="Time B"
               accent="violet"
-              names={namesFor(current.teamBIds).map((p) => p.name)}
+              players={playersFor(current.teamBIds)}
               isWinner={current.winner === "B"}
+              editMode={editMode}
+              selectedId={swapSelection}
+              onSelect={handlePlayerTap}
             />
           </div>
 
           {current.benchIds.length > 0 && (
             <div className="rounded-xl border border-white/5 bg-white/[0.02] px-4 py-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Banco
               </p>
-              <p className="mt-1 text-sm text-slate-300">
-                {namesFor(current.benchIds)
-                  .map((p) => p.name)
-                  .join(" · ")}
-              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {playersFor(current.benchIds).map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    disabled={!editMode}
+                    onClick={() => handlePlayerTap(p.id)}
+                    className={`rounded-full px-2.5 py-1 text-sm transition ${
+                      swapSelection === p.id
+                        ? "bg-orange-500 text-white"
+                        : editMode
+                          ? "bg-white/10 text-slate-200 hover:bg-white/20"
+                          : "text-slate-300"
+                    }`}
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -356,14 +470,20 @@ export default function SorteioPage() {
 
 function TeamCard({
   label,
-  names,
+  players,
   isWinner,
   accent,
+  editMode,
+  selectedId,
+  onSelect,
 }: {
   label: string;
-  names: string[];
+  players: Player[];
   isWinner: boolean;
   accent: "sky" | "violet";
+  editMode: boolean;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
 }) {
   const accentClasses =
     accent === "sky"
@@ -380,10 +500,24 @@ function TeamCard({
         <h3 className="font-bold text-white">{label}</h3>
         {isWinner && <span className="text-lg">🏆</span>}
       </div>
-      <ul className="space-y-1 text-sm text-slate-300">
-        {names.map((n) => (
-          <li key={n} className="truncate">
-            {n}
+      <ul className="space-y-1 text-sm">
+        {players.map((p) => (
+          <li key={p.id}>
+            {editMode ? (
+              <button
+                type="button"
+                onClick={() => onSelect(p.id)}
+                className={`w-full truncate rounded-lg px-1.5 py-0.5 text-left transition ${
+                  selectedId === p.id
+                    ? "bg-orange-500 text-white"
+                    : "text-slate-300 hover:bg-white/10"
+                }`}
+              >
+                {p.name}
+              </button>
+            ) : (
+              <span className="block truncate text-slate-300">{p.name}</span>
+            )}
           </li>
         ))}
       </ul>
