@@ -24,7 +24,9 @@ export default function SorteioPage() {
   const [rounds, setRounds] = useState<RoundState[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<null | "sortear" | "A" | "B" | "swap" | "day">(null);
+  const [busy, setBusy] = useState<null | "sortear" | "A" | "B" | "swap" | "day" | "reset">(
+    null
+  );
   const [editMode, setEditMode] = useState(false);
   const [swapSelection, setSwapSelection] = useState<string | null>(null);
 
@@ -200,6 +202,26 @@ export default function SorteioPage() {
         return;
       }
       setRounds(rounds.map((r) => (r.id === current.id ? { ...r, winner: team } : r)));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function resetarSorteio() {
+    const current = rounds[rounds.length - 1];
+    if (!current || current.winner) return;
+    if (!confirm("Descartar esse sorteio e sortear de novo?")) return;
+    setError(null);
+    setBusy("reset");
+    try {
+      const { error } = await supabase.from("rounds").delete().eq("id", current.id);
+      if (error) {
+        setError(error.message);
+        return;
+      }
+      setRounds(rounds.filter((r) => r.id !== current.id));
+      setEditMode(false);
+      setSwapSelection(null);
     } finally {
       setBusy(null);
     }
@@ -458,19 +480,29 @@ export default function SorteioPage() {
             {current.winner || gameDayFinished ? (
               <span className="text-xs font-semibold text-emerald-400">Encerrado ✓</span>
             ) : (
-              <button
-                onClick={() => {
-                  setEditMode((v) => !v);
-                  setSwapSelection(null);
-                }}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                  editMode
-                    ? "bg-orange-500 text-white"
-                    : "bg-white/5 text-slate-400 hover:text-white"
-                }`}
-              >
-                {editMode ? "✕ Cancelar" : "✏️ Trocar"}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={resetarSorteio}
+                  disabled={busy !== null}
+                  className="flex items-center gap-1 rounded-full bg-white/5 px-3 py-1 text-xs font-semibold text-slate-400 transition hover:text-white disabled:opacity-60"
+                >
+                  {busy === "reset" ? <Spinner /> : "🔄"} Resortear
+                </button>
+                <button
+                  onClick={() => {
+                    setEditMode((v) => !v);
+                    setSwapSelection(null);
+                  }}
+                  disabled={busy !== null}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold transition disabled:opacity-60 ${
+                    editMode
+                      ? "bg-orange-500 text-white"
+                      : "bg-white/5 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  {editMode ? "✕ Cancelar" : "✏️ Trocar"}
+                </button>
+              </div>
             )}
           </div>
 
