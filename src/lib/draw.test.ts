@@ -80,7 +80,10 @@ describe("drawRound", () => {
   test("still balances gender when keeping the returning group together", () => {
     const players = makePlayers(16, 8); // 8 women, 8 men, teamSize 6, bench 4
     const previousBenchIds = new Set(["p0", "p1", "p2", "p3"]); // 4 women returning
-    const { teamA, teamB } = drawRound(players, previousBenchIds, undefined, previousBenchIds);
+    // all women already rested -> this round's bench must come from the men,
+    // so all 8 women stay in `playing` (deterministic totals for the assertion)
+    const allWomenIds = new Set(players.filter((p) => p.gender === "F").map((p) => p.id));
+    const { teamA, teamB } = drawRound(players, allWomenIds, undefined, previousBenchIds);
     const womenA = teamA.filter((p) => p.gender === "F").length;
     const womenB = teamB.filter((p) => p.gender === "F").length;
     expect(Math.abs(womenA - womenB)).toBeLessThanOrEqual(1);

@@ -55,23 +55,38 @@ export default function HistoricoPage() {
   const [playerNames, setPlayerNames] = useState<Map<string, string>>(new Map());
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
-    const [{ data: daysData }, { data: attendanceData }, { data: roundsData }, { data: playersData }] =
-      await Promise.all([
-        supabase
-          .from("game_days")
-          .select("id, date, finished, session_number")
-          .order("date", { ascending: false })
-          .order("session_number", { ascending: false }),
-        supabase.from("attendance").select("game_day_id, player_id"),
-        supabase
-          .from("rounds")
-          .select("id, game_day_id, round_number, winner, round_players(player_id, team)")
-          .order("round_number"),
-        supabase.from("players").select("id, name"),
-      ]);
+    setError(null);
+    const [daysRes, attendanceRes, roundsRes, playersRes] = await Promise.all([
+      supabase
+        .from("game_days")
+        .select("id, date, finished, session_number")
+        .order("date", { ascending: false })
+        .order("session_number", { ascending: false }),
+      supabase.from("attendance").select("game_day_id, player_id"),
+      supabase
+        .from("rounds")
+        .select("id, game_day_id, round_number, winner, round_players(player_id, team)")
+        .order("round_number"),
+      supabase.from("players").select("id, name"),
+    ]);
+
+    const firstError =
+      daysRes.error ?? attendanceRes.error ?? roundsRes.error ?? playersRes.error;
+    if (firstError) {
+      console.error("historico load error:", firstError);
+      setError(firstError.message);
+      setLoading(false);
+      return;
+    }
+
+    const { data: daysData } = daysRes;
+    const { data: attendanceData } = attendanceRes;
+    const { data: roundsData } = roundsRes;
+    const { data: playersData } = playersRes;
 
     setDays(daysData ?? []);
 
@@ -107,6 +122,12 @@ export default function HistoricoPage() {
         <p className="text-sm text-slate-400">Dias jogados, sets e resultados.</p>
       </div>
 
+      {error && (
+        <p className="rounded-xl border border-red-500/20 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300">
+          {error}
+        </p>
+      )}
+
       {loading ? (
         <div className="space-y-2">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -121,7 +142,7 @@ export default function HistoricoPage() {
       ) : (
         <ul className="space-y-2">
           {days.map((day) => {
-            const rounds = (roundsByDay.get(day.id) ?? []).sort(
+            const rounds = [...(roundsByDay.get(day.id) ?? [])].sort(
               (a, b) => a.round_number - b.round_number
             );
             const expanded = expandedId === day.id;
