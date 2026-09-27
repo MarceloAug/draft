@@ -149,7 +149,13 @@ export default function SorteioPage() {
       const alreadyRested = new Set(rounds.flatMap((r) => r.benchIds));
       const last = rounds[rounds.length - 1];
       const previousTeamAIds = last ? new Set(last.teamAIds) : undefined;
-      const { teamA, teamB, bench } = drawRound(present, alreadyRested, previousTeamAIds);
+      const previousBenchIds = last ? new Set(last.benchIds) : undefined;
+      const { teamA, teamB, bench } = drawRound(
+        present,
+        alreadyRested,
+        previousTeamAIds,
+        previousBenchIds
+      );
       const roundNumber = last ? last.round_number + 1 : 1;
 
       const { data: roundRow, error: roundErr } = await supabase
