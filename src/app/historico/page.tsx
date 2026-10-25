@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { withPositions } from "@/lib/ranking";
 
 interface GameDayRow {
   id: string;
@@ -43,9 +44,11 @@ function rankingFor(rounds: RoundRow[]) {
       wins.set(rp.player_id, (wins.get(rp.player_id) ?? 0) + 1);
     }
   }
-  return [...wins.entries()]
-    .map(([playerId, count]) => ({ playerId, wins: count }))
-    .sort((a, b) => b.wins - a.wins);
+  return withPositions(
+    [...wins.entries()]
+      .map(([playerId, count]) => ({ playerId, wins: count }))
+      .sort((a, b) => b.wins - a.wins)
+  );
 }
 
 export default function HistoricoPage() {
@@ -189,18 +192,18 @@ export default function HistoricoPage() {
                           </p>
                         );
                       }
-                      return ranking.map((entry, i) => (
+                      return ranking.map((entry) => (
                         <div
                           key={entry.playerId}
                           className={`flex items-center gap-3 rounded-lg border px-3 py-2 ${
-                            i === 0
+                            entry.position === 1
                               ? "border-amber-400/30 bg-amber-400/5"
                               : "border-white/5 bg-white/[0.02]"
                           }`}
                         >
                           <span className="w-6 shrink-0 text-center">
-                            {medals[i] ?? (
-                              <span className="text-xs text-slate-500">{i + 1}º</span>
+                            {medals[entry.position - 1] ?? (
+                              <span className="text-xs text-slate-500">{entry.position}º</span>
                             )}
                           </span>
                           <span className="flex-1 truncate text-sm font-medium text-slate-100">

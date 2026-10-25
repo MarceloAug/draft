@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { todayStr } from "@/lib/date";
+import { withPositions } from "@/lib/ranking";
 
 interface WinRow {
   team: "A" | "B" | "BENCH";
@@ -48,7 +49,7 @@ export default function RankingPage() {
       entry.wins += 1;
       wins.set(row.players.id, entry);
     }
-    return [...wins.values()].sort((a, b) => b.wins - a.wins);
+    return withPositions([...wins.values()].sort((a, b) => b.wins - a.wins));
   }, [rows, scope, todayId]);
 
   const maxWins = ranking[0]?.wins ?? 0;
@@ -78,17 +79,19 @@ export default function RankingPage() {
         </div>
       ) : (
         <ol className="space-y-2">
-          {ranking.map((r, i) => (
+          {ranking.map((r) => (
             <li
               key={r.name}
               className={`flex items-center gap-3 rounded-xl border px-4 py-3.5 ${
-                i === 0
+                r.position === 1
                   ? "border-amber-400/30 bg-amber-400/5"
                   : "border-white/5 bg-white/[0.03]"
               }`}
             >
               <span className="w-6 shrink-0 text-center text-lg">
-                {medals[i] ?? <span className="text-sm text-slate-500">{i + 1}º</span>}
+                {medals[r.position - 1] ?? (
+                  <span className="text-sm text-slate-500">{r.position}º</span>
+                )}
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-2">

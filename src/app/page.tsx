@@ -559,7 +559,10 @@ export default function SorteioPage() {
                           : "text-slate-300"
                     }`}
                   >
-                    {p.name}
+                    {p.name}{" "}
+                    <span className="text-xs text-slate-500">
+                      ({rounds.filter((r) => r.benchIds.includes(p.id)).length}x)
+                    </span>
                   </button>
                 ))}
               </div>
