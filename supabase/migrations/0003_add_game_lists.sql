@@ -18,5 +18,7 @@ create table if not exists game_list_entries (
 alter table game_lists enable row level security;
 alter table game_list_entries enable row level security;
 
+drop policy if exists "public full access" on game_lists;
 create policy "public full access" on game_lists for all using (true) with check (true);
+drop policy if exists "public full access" on game_list_entries;
 create policy "public full access" on game_list_entries for all using (true) with check (true);

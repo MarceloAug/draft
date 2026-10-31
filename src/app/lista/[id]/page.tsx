@@ -84,10 +84,8 @@ export default function ListaPublicaPage() {
       .insert({ list_id: id, player_id: playerId });
     setBusy(false);
     // 23505 = already on the list: nothing to do
-    if (error && error.code !== "23505") {
-      setError(error.message);
-      return;
-    }
+    // reload even on failure so a just-registered player is in `players` (no duplicate on retry)
+    if (error && error.code !== "23505") setError(error.message);
     load();
   }
 
@@ -226,6 +224,7 @@ export default function ListaPublicaPage() {
         />
       )}
 
+      {list && (
       <section className="space-y-2">
         <h3 className="text-sm font-semibold text-slate-300">
           Confirmados ({entryIds.length})
@@ -257,6 +256,7 @@ export default function ListaPublicaPage() {
           </ol>
         )}
       </section>
+      )}
     </div>
   );
 }

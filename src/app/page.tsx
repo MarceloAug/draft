@@ -161,7 +161,10 @@ export default function SorteioPage() {
     if (toAdd.length > 0) {
       const { error: insertErr } = await supabase
         .from("attendance")
-        .insert(toAdd.map((pid) => ({ game_day_id: gameDayId, player_id: pid })));
+        .upsert(
+          toAdd.map((pid) => ({ game_day_id: gameDayId, player_id: pid })),
+          { onConflict: "game_day_id,player_id", ignoreDuplicates: true },
+        );
       if (insertErr) {
         setError(insertErr.message);
         setBusy(null);

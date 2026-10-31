@@ -7,14 +7,14 @@ import { buildListText } from "@/lib/listText";
 import type { GameList } from "@/lib/types";
 
 interface EntryRow {
-  list_id: string;
   player_id: string;
   players: { name: string } | null;
 }
 
+type ListRow = GameList & { game_list_entries: EntryRow[] };
+
 export default function ListasPage() {
-  const [lists, setLists] = useState<GameList[]>([]);
-  const [entries, setEntries] = useState<EntryRow[]>([]);
+  const [lists, setLists] = useState<ListRow[]>([]);
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(todayStr());
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -24,33 +24,27 @@ export default function ListasPage() {
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
-    const [listsRes, entriesRes] = await Promise.all([
-      supabase
-        .from("game_lists")
-        .select("id, title, date, closed, created_at")
-        .order("date", { ascending: false })
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("game_list_entries")
-        .select("list_id, player_id, players(name)")
-        .order("created_at"),
-    ]);
-    const firstError = listsRes.error ?? entriesRes.error;
-    if (firstError) {
-      setError(firstError.message);
+    // entries nested per list: a flat entries query would hit PostgREST's 1000-row cap
+    const { data, error } = await supabase
+      .from("game_lists")
+      .select(
+        "id, title, date, closed, created_at, game_list_entries(player_id, created_at, players(name))",
+      )
+      .order("date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .order("created_at", { referencedTable: "game_list_entries", ascending: true });
+    if (error) {
+      setError(error.message);
       setLoading(false);
       return;
     }
-    setLists(listsRes.data ?? []);
-    setEntries((entriesRes.data as unknown as EntryRow[]) ?? []);
+    setLists((data as unknown as ListRow[]) ?? []);
     setLoading(false);
   }
 
   useEffect(() => {
     load();
   }, []);
-
-  const entriesOf = (listId: string) => entries.filter((e) => e.list_id === listId);
 
   async function createList(e: React.FormEvent) {
     e.preventDefault();
@@ -89,9 +83,9 @@ export default function ListasPage() {
     else load();
   }
 
-  async function copyText(list: GameList) {
+  async function copyText(list: ListRow) {
     const url = `${window.location.origin}/lista/${list.id}`;
-    const names = entriesOf(list.id).map((e) => e.players?.name ?? "?");
+    const names = list.game_list_entries.map((e) => e.players?.name ?? "?");
     try {
       await navigator.clipboard.writeText(buildListText(list.title, names, url));
       setCopiedId(list.id);
@@ -154,7 +148,7 @@ export default function ListasPage() {
       ) : (
         <ul className="space-y-2">
           {lists.map((list) => {
-            const listEntries = entriesOf(list.id);
+            const listEntries = list.game_list_entries;
             const expanded = expandedId === list.id;
             return (
               <li
