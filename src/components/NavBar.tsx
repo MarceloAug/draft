@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 const navItems = [
   { href: "/", label: "Sorteio", icon: "🎲" },
+  { href: "/listas", label: "Listas", icon: "📋" },
   { href: "/jogadores", label: "Jogadores", icon: "👥" },
   { href: "/ranking", label: "Ranking", icon: "🏆" },
   { href: "/historico", label: "Histórico", icon: "🗓️" },
@@ -39,7 +40,7 @@ export default function NavBar({ variant }: { variant: "top" | "bottom" }) {
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-white/5 bg-slate-950/90 backdrop-blur-lg sm:hidden">
-      <div className="mx-auto grid max-w-md grid-cols-4 px-2 pb-[env(safe-area-inset-bottom)]">
+      <div className="mx-auto grid max-w-md grid-cols-5 px-2 pb-[env(safe-area-inset-bottom)]">
         {navItems.map((item) => {
           const active = pathname === item.href;
           return (
