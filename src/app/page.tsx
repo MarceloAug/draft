@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { drawRound } from "@/lib/draw";
 import { todayStr } from "@/lib/date";
-import type { Player } from "@/lib/types";
+import type { GameList, Player } from "@/lib/types";
 
 interface RoundState {
   id: string;
@@ -24,9 +24,10 @@ export default function SorteioPage() {
   const [rounds, setRounds] = useState<RoundState[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<null | "sortear" | "A" | "B" | "swap" | "day" | "reset">(
-    null
-  );
+  const [busy, setBusy] = useState<
+    null | "sortear" | "A" | "B" | "swap" | "day" | "reset" | "lista"
+  >(null);
+  const [lists, setLists] = useState<GameList[]>([]);
   const [editMode, setEditMode] = useState(false);
   const [swapSelection, setSwapSelection] = useState<string | null>(null);
 
@@ -96,6 +97,12 @@ export default function SorteioPage() {
           .map((rp) => rp.player_id),
       }))
     );
+    const { data: listsData } = await supabase
+      .from("game_lists")
+      .select("id, title, date, closed, created_at")
+      .order("date", { ascending: false })
+      .order("created_at", { ascending: false });
+    setLists(listsData ?? []);
     setLoading(false);
   };
 
@@ -133,6 +140,48 @@ export default function SorteioPage() {
       else next.add(playerId);
       return next;
     });
+  }
+
+  async function carregarLista(listId: string) {
+    if (!gameDayId || !listId) return;
+    setBusy("lista");
+    setError(null);
+    const { data: entriesData, error: entriesErr } = await supabase
+      .from("game_list_entries")
+      .select("player_id")
+      .eq("list_id", listId);
+    if (entriesErr) {
+      setError(entriesErr.message);
+      setBusy(null);
+      return;
+    }
+    const toAdd = (entriesData ?? [])
+      .map((e) => e.player_id)
+      .filter((pid) => !attendingIds.has(pid));
+    if (toAdd.length > 0) {
+      const { error: insertErr } = await supabase
+        .from("attendance")
+        .insert(toAdd.map((pid) => ({ game_day_id: gameDayId, player_id: pid })));
+      if (insertErr) {
+        setError(insertErr.message);
+        setBusy(null);
+        return;
+      }
+    }
+    const { error: closeErr } = await supabase
+      .from("game_lists")
+      .update({ closed: true })
+      .eq("id", listId);
+    if (closeErr) setError(closeErr.message);
+    // someone may have registered through the link after this page loaded
+    const { data: playersData } = await supabase
+      .from("players")
+      .select("id, name, gender")
+      .order("name");
+    if (playersData) setPlayers(playersData);
+    setAttendingIds((prev) => new Set([...prev, ...toAdd]));
+    setLists((prev) => prev.map((l) => (l.id === listId ? { ...l, closed: true } : l)));
+    setBusy(null);
   }
 
   async function sortear() {
@@ -425,6 +474,25 @@ export default function SorteioPage() {
             {attendingIds.size} confirmados
           </span>
         </div>
+
+        {lists.length > 0 && !gameDayFinished && (
+          <select
+            value=""
+            onChange={(e) => carregarLista(e.target.value)}
+            disabled={busy !== null}
+            className="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3.5 py-2.5 text-sm text-white outline-none ring-orange-500/50 focus:ring-2 disabled:opacity-60"
+          >
+            <option value="">
+              {busy === "lista" ? "Carregando lista..." : "📋 Carregar lista..."}
+            </option>
+            {lists.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.title}
+                {l.closed ? " (encerrada)" : ""}
+              </option>
+            ))}
+          </select>
+        )}
 
         {players.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-4 py-8 text-center text-sm text-slate-400">
