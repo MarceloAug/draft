@@ -14,3 +14,8 @@ export function formatDate(dateStr: string): string {
     month: "short",
   });
 }
+
+export function formatSession(dateStr: string, sessionNumber: number): string {
+  const base = formatDate(dateStr);
+  return sessionNumber > 1 ? `${base} _${sessionNumber}` : base;
+}

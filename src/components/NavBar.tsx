@@ -4,9 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const navItems = [
-  { href: "/", label: "Sorteio", icon: "🎲" },
+  { href: "/", label: "Início", icon: "🏠" },
+  { href: "/sorteio", label: "Sorteio", icon: "🎲" },
   { href: "/listas", label: "Listas", icon: "📋" },
-  { href: "/jogadores", label: "Jogadores", icon: "👥" },
   { href: "/ranking", label: "Ranking", icon: "🏆" },
   { href: "/historico", label: "Histórico", icon: "🗓️" },
 ];

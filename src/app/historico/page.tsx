@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { withPositions } from "@/lib/ranking";
-import { formatDate } from "@/lib/date";
+import { formatSession } from "@/lib/date";
 
 interface GameDayRow {
   id: string;
@@ -21,11 +21,6 @@ interface RoundRow {
 }
 
 const medals = ["🥇", "🥈", "🥉"];
-
-function labelFor(day: GameDayRow) {
-  const base = formatDate(day.date);
-  return day.session_number > 1 ? `${base} _${day.session_number}` : base;
-}
 
 function rankingFor(rounds: RoundRow[]) {
   const wins = new Map<string, number>();
@@ -152,7 +147,7 @@ export default function HistoricoPage() {
                 >
                   <div>
                     <p className="text-sm font-semibold capitalize text-slate-100">
-                      {labelFor(day)}
+                      {formatSession(day.date, day.session_number)}
                     </p>
                     <p className="text-xs text-slate-500">
                       {attendanceCounts.get(day.id) ?? 0} jogadores · {rounds.length}{" "}
