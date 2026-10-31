@@ -76,7 +76,7 @@ Confirme aqui: https://<host>/lista/<id>
 - Identidade guardada em `localStorage` (`volei:playerId`), lida e escrita com try/catch;
   se indisponível, a pessoa só escolhe o nome toda vez.
 - Sem identidade: "Quem é você?" — busca por nome entre os jogadores + "Não estou na lista,
-  me cadastrar" (nome + gênero). A escolha é salva.
+  me cadastrar" (nome + gênero). A escolha é salva e já confirma a presença.
 - Com identidade: "Oi, <nome> 👋" + botão "Confirmar presença" / "Sair da lista";
   link "não sou <nome>" limpa a identidade.
 - "Adicionar outra pessoa": mesma busca/cadastro, adiciona sem salvar identidade.
