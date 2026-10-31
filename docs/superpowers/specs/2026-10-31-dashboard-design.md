@@ -69,6 +69,18 @@ pódio do dashboard. Teste em `src/lib/ranking.test.ts`.
 sessão na data — a aba "Hoje" fica vazia. Passa a buscar todos os `game_days` de hoje e
 contar vitórias de todas as sessões do dia (`rankPlayers(rows, todayIds)`).
 
+## Correção: limite de 1000 linhas no ranking
+
+`/ranking` busca todos os `round_players` numa consulta só; o PostgREST corta em 1000
+linhas sem avisar (o banco já tem 808 em 31/10/2026). A busca passa a ser paginada
+(`fetchWinRows` em `src/lib/winRows.ts`, páginas de 1000 com ordem estável
+`round_id, player_id`), usada pelo ranking e pelo dashboard.
+
+## Rótulo de sessão compartilhado
+
+`labelFor` do histórico (data + "_N" para sessão > 1) vira `formatSession(date,
+sessionNumber)` em `src/lib/date.ts`, usado pelo histórico e pelo card "Último jogo".
+
 ## Testes
 
 - `rankPlayers`: contagem só de quem estava no time vencedor, ignora banco e sets sem
