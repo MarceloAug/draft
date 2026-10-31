@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { withPositions } from "@/lib/ranking";
+import { formatDate } from "@/lib/date";
 
 interface GameDayRow {
   id: string;
@@ -20,15 +21,6 @@ interface RoundRow {
 }
 
 const medals = ["🥇", "🥈", "🥉"];
-
-function formatDate(dateStr: string) {
-  const d = new Date(`${dateStr}T00:00:00`);
-  return d.toLocaleDateString("pt-BR", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-  });
-}
 
 function labelFor(day: GameDayRow) {
   const base = formatDate(day.date);

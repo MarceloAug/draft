@@ -14,3 +14,11 @@ export interface Round {
   round_number: number;
   winner: "A" | "B" | null;
 }
+
+export interface GameList {
+  id: string;
+  title: string;
+  date: string;
+  closed: boolean;
+  created_at: string;
+}

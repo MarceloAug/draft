@@ -38,6 +38,21 @@ create table round_players (
   primary key (round_id, player_id)
 );
 
+create table game_lists (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  date date not null,
+  closed boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create table game_list_entries (
+  list_id uuid not null references game_lists(id) on delete cascade,
+  player_id uuid not null references players(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (list_id, player_id)
+);
+
 -- App sem login: RLS habilitado com policies públicas (qualquer um com a
 -- anon key, ou seja, qualquer um com o link do app, lê e escreve).
 alter table players enable row level security;
@@ -45,9 +60,13 @@ alter table game_days enable row level security;
 alter table attendance enable row level security;
 alter table rounds enable row level security;
 alter table round_players enable row level security;
+alter table game_lists enable row level security;
+alter table game_list_entries enable row level security;
 
 create policy "public full access" on players for all using (true) with check (true);
 create policy "public full access" on game_days for all using (true) with check (true);
 create policy "public full access" on attendance for all using (true) with check (true);
 create policy "public full access" on rounds for all using (true) with check (true);
 create policy "public full access" on round_players for all using (true) with check (true);
+create policy "public full access" on game_lists for all using (true) with check (true);
+create policy "public full access" on game_list_entries for all using (true) with check (true);
