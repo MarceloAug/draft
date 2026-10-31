@@ -49,6 +49,7 @@ export default function InicioPage() {
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   async function load() {
     const today = todayStr();
@@ -85,6 +86,7 @@ export default function InicioPage() {
       winRes.error;
     if (firstError) {
       setError(firstError);
+      setLoadFailed(true);
       setLoading(false);
       return;
     }
@@ -94,7 +96,11 @@ export default function InicioPage() {
     setPodium(rankPlayers(winRes.rows).filter((p) => p.position <= 3));
 
     const daysWithWinner = new Set(
-      winRes.rows.flatMap((r) => (r.rounds && r.rounds.winner ? [r.rounds.game_day_id] : []))
+      winRes.rows.flatMap((r) =>
+        r.players && r.rounds && r.rounds.winner && r.team === r.rounds.winner
+          ? [r.rounds.game_day_id]
+          : []
+      )
     );
     const last = ((daysRes.data ?? []) as DayRow[]).find((d) => daysWithWinner.has(d.id));
     setLastGame(
@@ -147,6 +153,8 @@ export default function InicioPage() {
         </p>
       )}
 
+      {!loadFailed && (
+        <>
       {todayGame && (
         <section className={cardClass}>
           <div className="flex items-center justify-between gap-2">
@@ -262,6 +270,8 @@ export default function InicioPage() {
             · {lastGame.top[0].wins} {lastGame.top[0].wins === 1 ? "vitória" : "vitórias"}
           </p>
         </section>
+      )}
+        </>
       )}
 
       <section className="grid grid-cols-3 gap-2 sm:grid-cols-5">

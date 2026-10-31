@@ -50,13 +50,12 @@ export default function HistoricoPage() {
   async function load() {
     setLoading(true);
     setError(null);
-    const [daysRes, attendanceRes, roundsRes, playersRes] = await Promise.all([
+    const [daysRes, roundsRes, playersRes] = await Promise.all([
       supabase
         .from("game_days")
-        .select("id, date, finished, session_number")
+        .select("id, date, finished, session_number, attendance(count)")
         .order("date", { ascending: false })
         .order("session_number", { ascending: false }),
-      supabase.from("attendance").select("game_day_id, player_id"),
       supabase
         .from("rounds")
         .select("id, game_day_id, round_number, winner, round_players(player_id, team)")
@@ -64,8 +63,7 @@ export default function HistoricoPage() {
       supabase.from("players").select("id, name"),
     ]);
 
-    const firstError =
-      daysRes.error ?? attendanceRes.error ?? roundsRes.error ?? playersRes.error;
+    const firstError = daysRes.error ?? roundsRes.error ?? playersRes.error;
     if (firstError) {
       console.error("historico load error:", firstError);
       setError(firstError.message);
@@ -74,17 +72,19 @@ export default function HistoricoPage() {
     }
 
     const { data: daysData } = daysRes;
-    const { data: attendanceData } = attendanceRes;
     const { data: roundsData } = roundsRes;
     const { data: playersData } = playersRes;
 
     setDays(daysData ?? []);
 
-    const counts = new Map<string, number>();
-    for (const a of attendanceData ?? []) {
-      counts.set(a.game_day_id, (counts.get(a.game_day_id) ?? 0) + 1);
-    }
-    setAttendanceCounts(counts);
+    setAttendanceCounts(
+      new Map(
+        (daysData ?? []).map((d) => {
+          const att = (d as unknown as { attendance: { count: number }[] }).attendance;
+          return [d.id, att[0]?.count ?? 0];
+        })
+      )
+    );
 
     const grouped = new Map<string, RoundRow[]>();
     for (const r of (roundsData as unknown as RoundRow[]) ?? []) {
