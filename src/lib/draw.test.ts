@@ -65,36 +65,28 @@ describe("drawRound", () => {
     expect(same).toBe(false);
   });
 
-  test("keeps the group that just rested together on one team", () => {
+  test("players returning from the bench are not forced onto the same team", () => {
     const players = makePlayers(16, 6); // teamSize 6, bench 4
-    const previousBenchIds = new Set(["p12", "p13", "p14", "p15"]);
-    // already rested -> pickBench won't bench them again this round
-    const { teamA, teamB } = drawRound(players, previousBenchIds, undefined, previousBenchIds);
-    const idsA = new Set(teamA.map((p) => p.id));
-    const idsB = new Set(teamB.map((p) => p.id));
-    const allOnA = [...previousBenchIds].every((id) => idsA.has(id));
-    const allOnB = [...previousBenchIds].every((id) => idsB.has(id));
-    expect(allOnA || allOnB).toBe(true);
+    const returning = ["p12", "p13", "p14", "p15"];
+    // they already rested -> pickBench won't bench them again this round
+    const rested = new Set(returning);
+    // ponytail: random split; 50 draws all grouping them by chance is ~impossible
+    const everSplit = Array.from({ length: 50 }).some(() => {
+      const idsA = new Set(drawRound(players, rested).teamA.map((p) => p.id));
+      const onA = returning.filter((id) => idsA.has(id)).length;
+      return onA > 0 && onA < returning.length;
+    });
+    expect(everSplit).toBe(true);
   });
 
-  test("still balances gender when keeping the returning group together", () => {
+  test("still balances gender with a bench", () => {
     const players = makePlayers(16, 8); // 8 women, 8 men, teamSize 6, bench 4
-    const previousBenchIds = new Set(["p0", "p1", "p2", "p3"]); // 4 women returning
     // all women already rested -> this round's bench must come from the men,
     // so all 8 women stay in `playing` (deterministic totals for the assertion)
     const allWomenIds = new Set(players.filter((p) => p.gender === "F").map((p) => p.id));
-    const { teamA, teamB } = drawRound(players, allWomenIds, undefined, previousBenchIds);
+    const { teamA, teamB } = drawRound(players, allWomenIds);
     const womenA = teamA.filter((p) => p.gender === "F").length;
     const womenB = teamB.filter((p) => p.gender === "F").length;
     expect(Math.abs(womenA - womenB)).toBeLessThanOrEqual(1);
-  });
-
-  test("falls back to a plain split when the returning group is bigger than one team", () => {
-    const players = makePlayers(11, 5); // teamSize 5
-    const previousBenchIds = new Set(["p0", "p1", "p2", "p3", "p4", "p5"]); // 6 > teamSize
-    const { teamA, teamB, bench } = drawRound(players, new Set(), undefined, previousBenchIds);
-    expect(teamA.length).toBe(5);
-    expect(teamB.length).toBe(5);
-    expect(bench.length).toBe(1);
   });
 });
