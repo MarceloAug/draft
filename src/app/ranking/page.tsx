@@ -3,35 +3,28 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { todayStr } from "@/lib/date";
-import { withPositions } from "@/lib/ranking";
-
-interface WinRow {
-  team: "A" | "B" | "BENCH";
-  players: { id: string; name: string } | null;
-  rounds: { winner: "A" | "B" | null; game_day_id: string } | null;
-}
+import { rankPlayers, type WinRow } from "@/lib/ranking";
+import { fetchWinRows } from "@/lib/winRows";
 
 const medals = ["🥇", "🥈", "🥉"];
 
 export default function RankingPage() {
   const [rows, setRows] = useState<WinRow[]>([]);
-  const [todayId, setTodayId] = useState<string | null>(null);
+  const [todayIds, setTodayIds] = useState<Set<string>>(new Set());
   const [scope, setScope] = useState<"hoje" | "geral">("geral");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
-    const { data: day } = await supabase
-      .from("game_days")
-      .select("id")
-      .eq("date", todayStr())
-      .maybeSingle();
-    setTodayId(day?.id ?? null);
-
-    const { data } = await supabase
-      .from("round_players")
-      .select("team, players(id, name), rounds(winner, game_day_id)");
-    setRows((data as unknown as WinRow[]) ?? []);
+    // every session of today counts toward "Hoje"
+    const [daysRes, winRes] = await Promise.all([
+      supabase.from("game_days").select("id").eq("date", todayStr()),
+      fetchWinRows(),
+    ]);
+    setTodayIds(new Set((daysRes.data ?? []).map((d) => d.id)));
+    setRows(winRes.rows);
+    setError(daysRes.error?.message ?? winRes.error);
     setLoading(false);
   };
 
@@ -39,18 +32,10 @@ export default function RankingPage() {
     load();
   }, []);
 
-  const ranking = useMemo(() => {
-    const wins = new Map<string, { name: string; wins: number }>();
-    for (const row of rows) {
-      if (!row.players || !row.rounds || !row.rounds.winner) continue;
-      if (row.team !== row.rounds.winner) continue;
-      if (scope === "hoje" && row.rounds.game_day_id !== todayId) continue;
-      const entry = wins.get(row.players.id) ?? { name: row.players.name, wins: 0 };
-      entry.wins += 1;
-      wins.set(row.players.id, entry);
-    }
-    return withPositions([...wins.values()].sort((a, b) => b.wins - a.wins));
-  }, [rows, scope, todayId]);
+  const ranking = useMemo(
+    () => rankPlayers(rows, scope === "hoje" ? todayIds : undefined),
+    [rows, scope, todayIds]
+  );
 
   const maxWins = ranking[0]?.wins ?? 0;
 
@@ -65,6 +50,12 @@ export default function RankingPage() {
         <ScopeButton label="Hoje" active={scope === "hoje"} onClick={() => setScope("hoje")} />
         <ScopeButton label="Geral" active={scope === "geral"} onClick={() => setScope("geral")} />
       </div>
+
+      {error && (
+        <p className="rounded-xl border border-red-500/20 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300">
+          {error}
+        </p>
+      )}
 
       {loading ? (
         <div className="space-y-2">
@@ -81,7 +72,7 @@ export default function RankingPage() {
         <ol className="space-y-2">
           {ranking.map((r) => (
             <li
-              key={r.name}
+              key={r.id}
               className={`flex items-center gap-3 rounded-xl border px-4 py-3.5 ${
                 r.position === 1
                   ? "border-amber-400/30 bg-amber-400/5"
