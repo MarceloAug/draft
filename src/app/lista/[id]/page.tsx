@@ -218,7 +218,8 @@ export default function ListaPublicaPage() {
       {open && picker !== null && (
         <PlayerPicker
           title={picker === "me" ? "Quem é você?" : "Quem você quer adicionar?"}
-          players={players.filter((p) => !entryIds.includes(p.id) || picker === "me")}
+          players={players}
+          excludeIds={picker === "other" ? entryIds : []}
           onPick={handlePick}
           onRegister={registerPlayer}
           onCancel={() => setPicker(null)}
@@ -263,12 +264,14 @@ export default function ListaPublicaPage() {
 function PlayerPicker({
   title,
   players,
+  excludeIds,
   onPick,
   onRegister,
   onCancel,
 }: {
   title: string;
   players: Player[];
+  excludeIds: string[];
   onPick: (playerId: string) => void;
   onRegister: (name: string, gender: Gender) => Promise<string | null>;
   onCancel: () => void;
@@ -279,7 +282,9 @@ function PlayerPicker({
   const [saving, setSaving] = useState(false);
 
   const q = query.trim().toLowerCase();
-  const matches = players.filter((p) => p.name.toLowerCase().includes(q));
+  const matches = players.filter(
+    (p) => !excludeIds.includes(p.id) && p.name.toLowerCase().includes(q),
+  );
 
   async function register(e: React.FormEvent) {
     e.preventDefault();
