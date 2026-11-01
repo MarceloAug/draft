@@ -30,6 +30,7 @@ export default function SorteioPage() {
   const [lists, setLists] = useState<GameList[]>([]);
   const [editMode, setEditMode] = useState(false);
   const [swapSelection, setSwapSelection] = useState<string | null>(null);
+  const [maxTeamSize, setMaxTeamSize] = useState<5 | 6>(6);
 
   const init = async () => {
     setLoading(true);
@@ -48,7 +49,7 @@ export default function SorteioPage() {
     let dayId: string;
     const { data: existingDays } = await supabase
       .from("game_days")
-      .select("id, finished, session_number")
+      .select("id, finished, session_number, team_size")
       .eq("date", date)
       .order("session_number", { ascending: false })
       .limit(1);
@@ -57,11 +58,12 @@ export default function SorteioPage() {
       dayId = existingDay.id;
       setGameDayFinished(existingDay.finished);
       setSessionNumber(existingDay.session_number);
+      setMaxTeamSize(existingDay.team_size === 5 ? 5 : 6);
     } else {
       const { data: newDay, error: newDayErr } = await supabase
         .from("game_days")
         .insert({ date, session_number: 1 })
-        .select("id, finished, session_number")
+        .select("id, finished, session_number, team_size")
         .single();
       if (newDayErr) {
         setError(newDayErr.message);
@@ -71,6 +73,7 @@ export default function SorteioPage() {
       dayId = newDay.id;
       setGameDayFinished(newDay.finished);
       setSessionNumber(newDay.session_number);
+      setMaxTeamSize(newDay.team_size === 5 ? 5 : 6);
     }
     setGameDayId(dayId);
 
@@ -187,6 +190,20 @@ export default function SorteioPage() {
     setBusy(null);
   }
 
+  async function escolherModo(size: 5 | 6) {
+    if (!gameDayId || size === maxTeamSize) return;
+    setError(null);
+    const { error } = await supabase
+      .from("game_days")
+      .update({ team_size: size })
+      .eq("id", gameDayId);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setMaxTeamSize(size);
+  }
+
   async function sortear() {
     if (!gameDayId) return;
     const present = players.filter((p) => attendingIds.has(p.id));
@@ -201,7 +218,12 @@ export default function SorteioPage() {
       const alreadyRested = new Set(rounds.flatMap((r) => r.benchIds));
       const last = rounds[rounds.length - 1];
       const previousTeamAIds = last ? new Set(last.teamAIds) : undefined;
-      const { teamA, teamB, bench } = drawRound(present, alreadyRested, previousTeamAIds);
+      const { teamA, teamB, bench } = drawRound(
+        present,
+        alreadyRested,
+        previousTeamAIds,
+        maxTeamSize
+      );
       const roundNumber = last ? last.round_number + 1 : 1;
 
       const { data: roundRow, error: roundErr } = await supabase
@@ -329,7 +351,7 @@ export default function SorteioPage() {
       const { data: newDay, error: newDayErr } = await supabase
         .from("game_days")
         .insert({ date, session_number: nextSession })
-        .select("id, finished, session_number")
+        .select("id, finished, session_number, team_size")
         .single();
       if (newDayErr) {
         setError(newDayErr.message);
@@ -338,6 +360,7 @@ export default function SorteioPage() {
       setGameDayId(newDay.id);
       setGameDayFinished(newDay.finished);
       setSessionNumber(newDay.session_number);
+      setMaxTeamSize(newDay.team_size === 5 ? 5 : 6);
       setAttendingIds(new Set());
       setRounds([]);
       setEditMode(false);
@@ -527,26 +550,58 @@ export default function SorteioPage() {
       </section>
 
       {!current && players.length > 0 && !gameDayFinished && (
-        <button
-          onClick={sortear}
-          disabled={busy !== null}
-          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-400 py-3.5 text-base font-bold text-slate-950 shadow-xl shadow-orange-500/25 transition active:scale-[0.98] disabled:opacity-60"
-        >
-          {busy === "sortear" ? (
-            <>
-              <Spinner /> Sorteando...
-            </>
-          ) : (
-            "🎲 Sortear times"
-          )}
-        </button>
+        <section className="space-y-3 rounded-2xl border border-white/5 bg-white/[0.02] p-4">
+          {/* the mode locks after the first draw and holds for the rest of the day */}
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm font-medium text-slate-400">Modo de jogo</span>
+            <div
+              role="radiogroup"
+              aria-label="Modo de jogo"
+              className="flex rounded-xl border border-white/10 bg-white/[0.03] p-1"
+            >
+              {([6, 5] as const).map((size) => (
+                <button
+                  key={size}
+                  type="button"
+                  role="radio"
+                  aria-checked={maxTeamSize === size}
+                  onClick={() => escolherModo(size)}
+                  disabled={busy !== null}
+                  className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition disabled:opacity-60 ${
+                    maxTeamSize === size
+                      ? "bg-orange-500 text-white"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  {size}x{size}
+                </button>
+              ))}
+            </div>
+          </div>
+          <button
+            onClick={sortear}
+            disabled={busy !== null}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-400 py-3.5 text-base font-bold text-slate-950 shadow-xl shadow-orange-500/25 transition active:scale-[0.98] disabled:opacity-60"
+          >
+            {busy === "sortear" ? (
+              <>
+                <Spinner /> Sorteando...
+              </>
+            ) : (
+              `🎲 Sortear times ${maxTeamSize}x${maxTeamSize}`
+            )}
+          </button>
+        </section>
       )}
 
       {current && (
         <section className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold tracking-tight text-white">
-              Set {current.round_number}
+              Set {current.round_number}{" "}
+              <span className="text-sm font-semibold text-slate-500">
+                · {maxTeamSize}x{maxTeamSize}
+              </span>
             </h2>
             {current.winner || gameDayFinished ? (
               <span className="text-xs font-semibold text-emerald-400">Encerrado ✓</span>

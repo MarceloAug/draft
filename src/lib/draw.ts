@@ -1,7 +1,10 @@
 import type { Player } from "./types";
 
-export function computeTeamSizes(n: number): { teamSize: number; bench: number } {
-  const teamSize = Math.min(6, Math.floor(n / 2));
+export function computeTeamSizes(
+  n: number,
+  maxTeamSize = 6
+): { teamSize: number; bench: number } {
+  const teamSize = Math.min(maxTeamSize, Math.floor(n / 2));
   return { teamSize, bench: n - teamSize * 2 };
 }
 
@@ -60,9 +63,10 @@ export function splitTeams(
 export function drawRound(
   present: Player[],
   alreadyRestedIds: Set<string>,
-  previousTeamAIds?: Set<string>
+  previousTeamAIds?: Set<string>,
+  maxTeamSize = 6
 ) {
-  const { teamSize, bench } = computeTeamSizes(present.length);
+  const { teamSize, bench } = computeTeamSizes(present.length, maxTeamSize);
   const benchPlayers = pickBench(present, bench, alreadyRestedIds);
   const benchIds = new Set(benchPlayers.map((p) => p.id));
   const playing = present.filter((p) => !benchIds.has(p.id));

@@ -23,6 +23,10 @@ describe("computeTeamSizes", () => {
     expect(computeTeamSizes(14)).toEqual({ teamSize: 6, bench: 2 });
     expect(computeTeamSizes(16)).toEqual({ teamSize: 6, bench: 4 });
   });
+  test("5x5 mode: capped at 5, rest benched", () => {
+    expect(computeTeamSizes(15, 5)).toEqual({ teamSize: 5, bench: 5 });
+    expect(computeTeamSizes(9, 5)).toEqual({ teamSize: 4, bench: 1 });
+  });
 });
 
 describe("pickBench", () => {
@@ -77,6 +81,17 @@ describe("drawRound", () => {
       return onA > 0 && onA < returning.length;
     });
     expect(everSplit).toBe(true);
+  });
+
+  test("5x5 with 15: the 5 benched last round all come back in", () => {
+    const players = makePlayers(15, 5);
+    const first = drawRound(players, new Set(), undefined, 5);
+    expect(first.teamA.length).toBe(5);
+    expect(first.teamB.length).toBe(5);
+    expect(first.bench.length).toBe(5);
+    const rested = new Set(first.bench.map((p) => p.id));
+    const second = drawRound(players, rested, undefined, 5);
+    expect(second.bench.some((p) => rested.has(p.id))).toBe(false);
   });
 
   test("still balances gender with a bench", () => {

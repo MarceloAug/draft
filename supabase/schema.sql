@@ -12,6 +12,7 @@ create table game_days (
   id uuid primary key default gen_random_uuid(),
   date date not null,
   session_number int not null default 1,
+  team_size int not null default 6 check (team_size in (5, 6)),
   finished boolean not null default false,
   created_at timestamptz not null default now(),
   unique (date, session_number)
